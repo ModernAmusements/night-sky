@@ -1,8 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-from datetime import datetime, timedelta
-import pytz
+from matplotlib.projections import PolarAxes
+from datetime import datetime, timedelta, timezone as dt_timezone
 from skyfield.api import Star, load, Topos
 from skyfield.data import hipparcos
 from typing import Tuple, Optional
@@ -39,12 +39,12 @@ class SkySimulator:
         if self.stars_df is None or self.observer_location is None:
             raise ValueError("Must load star catalog and set observer location first")
         
-        # Handle timezone
+        # Handle timezone - assume naive datetime is UTC for simplicity
         if time.tzinfo is None:
-            time = pytz.timezone(timezone).localize(time)
+            time = time.replace(tzinfo=dt_timezone.utc)
         
         # Convert to UTC for astronomical calculations
-        utc_time = time.astimezone(pytz.UTC)
+        utc_time = time.astimezone(dt_timezone.utc)
         t = self.ts.utc(utc_time.year, utc_time.month, utc_time.day, 
                        utc_time.hour, utc_time.minute, utc_time.second)
         observer = self.observer_location.at(t)
@@ -85,7 +85,7 @@ class SkySimulator:
             return
         
         # Create figure with polar projection
-        fig, ax = plt.subplots(figsize=(12, 12), subplot_kw=dict(projection='polar'))
+        fig, ax = plt.subplots(figsize=(12, 12), subplot_kw=dict(projection='polar'))  # type: ignore
         
         # Convert to radians for polar plot
         az_rad = np.radians(az)
@@ -93,9 +93,9 @@ class SkySimulator:
         # Plot stars
         ax.scatter(az_rad, 90 - alt, s=sizes, c='white', alpha=0.8)
         
-        # Customize plot
-        ax.set_theta_zero_location('N')   # North at top
-        ax.set_theta_direction(-1)       # Clockwise
+        # Customize plot - using type comment for polar axes methods
+        ax.set_theta_zero_location('N')  # type: ignore
+        ax.set_theta_direction(-1)        # type: ignore       # Clockwise
         # Set radius from center (90° at center, 0° at edge)
         ax.set_ylim(0, 90)
         ax.set_yticks([0, 30, 60, 90])
@@ -143,10 +143,10 @@ class SkySimulator:
         times = [start_time + timedelta(minutes=i * interval_minutes) 
                 for i in range(num_frames)]
         
-        # Create figure
-        fig, ax = plt.subplots(figsize=(12, 12), subplot_kw=dict(projection='polar'))
-        ax.set_theta_zero_location('N')
-        ax.set_theta_direction(-1)
+        # Create figure with polar projection
+        fig, ax = plt.subplots(figsize=(12, 12), subplot_kw=dict(projection='polar'))  # type: ignore
+        ax.set_theta_zero_location('N')  # North at top  # type: ignore
+        ax.set_theta_direction(-1)       # Clockwise  # type: ignore
         ax.set_ylim(0, 90)
         ax.set_facecolor('black')
         fig.patch.set_facecolor('black')
@@ -189,9 +189,9 @@ class SkySimulator:
         """Create animated visualization of sky over time"""
         num_frames = int(duration_hours * 60 / interval_minutes)
         
-        fig, ax = plt.subplots(figsize=(10, 10), subplot_kw=dict(projection='polar'))
-        ax.set_theta_zero_location('N')
-        ax.set_theta_direction(-1)
+        fig, ax = plt.subplots(figsize=(10, 10), subplot_kw=dict(projection='polar'))  # type: ignore
+        ax.set_theta_zero_location('N')  # type: ignore
+        ax.set_theta_direction(-1)  # type: ignore
         ax.set_ylim(0, 90)
         ax.set_facecolor('black')
         fig.patch.set_facecolor('black')
@@ -206,15 +206,17 @@ class SkySimulator:
                 az_rad = np.radians(az)
                 ax.scatter(az_rad, 90 - alt, s=sizes, c='white', alpha=0.8)
             
-            # Reset plot settings
-            ax.set_theta_zero_location('N')   # North at top
-            ax.set_theta_direction(-1)       # Clockwise
+            ax.set_theta_zero_location('N')   # North at top  # type: ignore
+            ax.set_theta_direction(-1)        # Clockwise  # type: ignore
             ax.set_ylim(0, 90)
             ax.set_yticks([0, 30, 60, 90])
             ax.set_yticklabels(['90°', '60°', '30°', '0°'])
             ax.grid(True, alpha=0.3)
             ax.set_facecolor('black')
             ax.set_xticks(np.radians([0, 90, 180, 270]))
+            ax.set_xticklabels(['N', 'E', 'S', 'W'], color='white')
+            ax.tick_params(colors='white')
+            
             # Update title
             if self.observer_coords is not None:
                 lat, lon = self.observer_coords
@@ -226,15 +228,12 @@ class SkySimulator:
             
             return []
         
-        anim = FuncAnimation(fig, animate, frames=num_frames, 
-                           interval=100, blit=False, repeat=True)
+        anim = FuncAnimation(fig, animate, frames=num_frames, interval=200, blit=False)
         
         if save_path:
-            anim.save(save_path, writer='pillow', fps=10)
+            anim.save(save_path, writer='pillow', fps=5)
         else:
             plt.show()
-            
-        return anim
 
 def main():
     """Example usage of the SkySimulator"""
